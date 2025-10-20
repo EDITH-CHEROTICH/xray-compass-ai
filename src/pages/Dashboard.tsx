@@ -2,7 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, FileText, Share2, Calendar, Clock } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AlertTriangle, CheckCircle2, FileText, Share2, Calendar, Clock, MessageSquare, Send } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Mock data - replace with real data from backend
@@ -24,6 +25,36 @@ const mockAnalysis = {
   overallRisk: "high",
   recommendation: "Immediate CT scan recommended. Refer to oncology specialist for further evaluation.",
 };
+
+const mockSpecialists = [
+  {
+    id: "spec_001",
+    name: "Dr. Sarah Chen",
+    specialty: "Oncology",
+    hospital: "Metro General Hospital",
+    experience: "15 years",
+    availability: "Available",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
+  },
+  {
+    id: "spec_002", 
+    name: "Dr. Michael Roberts",
+    specialty: "Radiology",
+    hospital: "City Medical Center",
+    experience: "12 years",
+    availability: "Available",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michael",
+  },
+  {
+    id: "spec_003",
+    name: "Dr. Priya Sharma",
+    specialty: "Pulmonology",
+    hospital: "Regional Care Institute",
+    experience: "10 years", 
+    availability: "Busy",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya",
+  },
+];
 
 const Dashboard = () => {
   const highRiskFindings = mockAnalysis.findings.filter(f => f.severity === "high");
@@ -227,6 +258,44 @@ const Dashboard = () => {
             <p className="text-xs text-muted-foreground">
               Powered by TorchXRayVision - Pre-trained DenseNet model on 18+ pathology classes
             </p>
+          </Card>
+
+          {/* Specialist Consultation */}
+          <Card className="p-6">
+            <h3 className="mb-4 font-semibold">Consult a Specialist</h3>
+            <div className="space-y-3">
+              {mockSpecialists.map((specialist) => (
+                <div key={specialist.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={specialist.avatar} alt={specialist.name} />
+                      <AvatarFallback>{specialist.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{specialist.name}</p>
+                      <p className="text-xs text-muted-foreground">{specialist.specialty}</p>
+                      <p className="text-xs text-muted-foreground">{specialist.hospital}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={specialist.availability === "Available" ? "outline" : "secondary"} className="text-xs">
+                          {specialist.availability}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{specialist.experience}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1">
+                      <Send className="mr-1 h-3 w-3" />
+                      Send Report
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1">
+                      <MessageSquare className="mr-1 h-3 w-3" />
+                      Chat
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
       </div>
