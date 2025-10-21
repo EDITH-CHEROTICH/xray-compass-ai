@@ -1,11 +1,31 @@
 import { Link, useLocation } from "react-router-dom";
-import { Activity, Upload, FileText, Home } from "lucide-react";
+import { Activity, Upload, FileText, Home, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Navigation = () => {
   const location = useLocation();
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
   
   const isActive = (path: string) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: 'Signed out',
+        description: 'You have been signed out successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to sign out',
+        variant: 'destructive',
+      });
+    }
+  };
   
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-sm">
@@ -28,38 +48,62 @@ const Navigation = () => {
               </Link>
             </Button>
             
-            <Button
-              asChild
-              variant={isActive("/upload") ? "default" : "ghost"}
-              size="sm"
-            >
-              <Link to="/upload" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                <span className="hidden sm:inline">Upload</span>
-              </Link>
-            </Button>
-            
-            <Button
-              asChild
-              variant={isActive("/dashboard") ? "default" : "ghost"}
-              size="sm"
-            >
-              <Link to="/dashboard" className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </Link>
-            </Button>
-            
-            <Button
-              asChild
-              variant={isActive("/reports") ? "default" : "ghost"}
-              size="sm"
-            >
-              <Link to="/reports" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Reports</span>
-              </Link>
-            </Button>
+            {user ? (
+              <>
+                <Button
+                  asChild
+                  variant={isActive("/upload") ? "default" : "ghost"}
+                  size="sm"
+                >
+                  <Link to="/upload" className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    <span className="hidden sm:inline">Upload</span>
+                  </Link>
+                </Button>
+                
+                <Button
+                  asChild
+                  variant={isActive("/dashboard") ? "default" : "ghost"}
+                  size="sm"
+                >
+                  <Link to="/dashboard" className="flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    <span className="hidden sm:inline">Dashboard</span>
+                  </Link>
+                </Button>
+                
+                <Button
+                  asChild
+                  variant={isActive("/reports") ? "default" : "ghost"}
+                  size="sm"
+                >
+                  <Link to="/reports" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Reports</span>
+                  </Link>
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-2">Sign Out</span>
+                </Button>
+              </>
+            ) : (
+              <Button
+                asChild
+                variant="default"
+                size="sm"
+              >
+                <Link to="/login" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>Sign In</span>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>

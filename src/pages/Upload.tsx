@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload as UploadIcon, FileImage, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
@@ -14,6 +16,13 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/login');
+    }
+  }, [user, loading, navigate]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -90,38 +99,67 @@ const Upload = () => {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !user) return;
 
-    setIsUploading(true);
-    setUploadProgress(0);
+    try {
+      setIsUploading(true);
+      setUploadProgress(10);
 
-    // Simulate upload progress (replace with actual upload logic)
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+      // Create a unique filename
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-    // Simulate API call
-    setTimeout(() => {
-      clearInterval(interval);
+      setUploadProgress(30);
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('xray-images')
+        .upload(fileName, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      setUploadProgress(60);
+
+      // Create database record
+      const { data: imageData, error: dbError } = await supabase
+        .from('xray_images')
+        .insert({
+          user_id: user.id,
+          file_name: selectedFile.name,
+          file_path: uploadData.path,
+          file_size: selectedFile.size,
+          mime_type: selectedFile.type,
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
       setUploadProgress(100);
-      setIsUploading(false);
-      
+
       toast({
-        title: "Analysis Started",
-        description: "Your X-ray is being analyzed by our AI models.",
+        title: "Upload Successful",
+        description: "Your X-ray has been uploaded. Analysis will begin shortly.",
       });
 
       // Navigate to dashboard after a short delay
       setTimeout(() => {
         navigate("/dashboard");
       }, 1000);
-    }, 2500);
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload X-ray. Please try again.",
+        variant: "destructive",
+      });
+      setUploadProgress(0);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
