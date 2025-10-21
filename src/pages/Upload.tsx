@@ -131,7 +131,6 @@ const Upload = () => {
           file_name: selectedFile.name,
           file_path: uploadData.path,
           file_size: selectedFile.size,
-          mime_type: selectedFile.type,
         })
         .select()
         .single();
