@@ -49,9 +49,15 @@ const Signup = () => {
           variant: 'destructive',
         });
       } else {
+        const errorMessage = (error as any)?.message || '';
+        const isUserExists = errorMessage.toLowerCase().includes('already registered') || 
+                            errorMessage.toLowerCase().includes('already exists');
+        
         toast({
           title: 'Error',
-          description: 'Failed to create account. Please try again.',
+          description: isUserExists 
+            ? 'An account with this email already exists. Please sign in instead.' 
+            : 'Failed to create account. Please try again.',
           variant: 'destructive',
         });
       }
