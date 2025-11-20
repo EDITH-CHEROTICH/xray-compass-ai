@@ -1,10 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { AlertTriangle, CheckCircle2, FileText, Share2, Calendar, Clock, MessageSquare, Send } from "lucide-react";
-import { Link } from "react-router-dom";
+import { AlertTriangle, CheckCircle2, FileText, Share2, Calendar, Clock, MessageSquare, Send, Loader2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 // Mock data - replace with real data from backend
 const mockAnalysis = {
@@ -56,7 +60,132 @@ const mockSpecialists = [
   },
 ];
 
+interface Specialist {
+  user_id: string;
+  full_name: string;
+  specialty: string;
+  hospital: string;
+  years_experience: number;
+  availability: string;
+  avatar_url: string;
+}
+
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [specialists, setSpecialists] = useState<Specialist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sendingReport, setSendingReport] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSpecialists = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .not('specialty', 'is', null)
+        .neq('user_id', user?.id);
+
+      if (error) {
+        console.error('Error fetching specialists:', error);
+      } else {
+        setSpecialists(data || []);
+      }
+      setLoading(false);
+    };
+
+    if (user) {
+      fetchSpecialists();
+    }
+  }, [user]);
+
+  const handleSendReport = async (specialistId: string) => {
+    if (!user) return;
+
+    setSendingReport(specialistId);
+    
+    // Get the most recent analysis result for this user
+    const { data: analysisData, error: analysisError } = await supabase
+      .from('analysis_results')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('analyzed_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (analysisError || !analysisData) {
+      toast({
+        title: 'Error',
+        description: 'No analysis results found. Please upload and analyze an X-ray first.',
+        variant: 'destructive',
+      });
+      setSendingReport(null);
+      return;
+    }
+
+    // Create consultation
+    const { data: consultationData, error: consultationError } = await supabase
+      .from('consultations')
+      .insert({
+        requesting_doctor_id: user.id,
+        specialist_id: specialistId,
+        analysis_result_id: analysisData.id,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (consultationError) {
+      console.error('Error creating consultation:', consultationError);
+      toast({
+        title: 'Error',
+        description: 'Failed to send report',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Success',
+        description: 'Report sent to specialist',
+      });
+      navigate(`/consultation/${consultationData.id}`);
+    }
+    setSendingReport(null);
+  };
+
+  const handleChat = async (specialistId: string) => {
+    if (!user) return;
+
+    // Check if there's an existing consultation with this specialist
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id')
+      .eq('requesting_doctor_id', user.id)
+      .eq('specialist_id', specialistId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking consultation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to open chat',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (data) {
+      navigate(`/consultation/${data.id}`);
+    } else {
+      toast({
+        title: 'No active consultation',
+        description: 'Please send a report first to start a consultation',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const highRiskFindings = mockAnalysis.findings.filter(f => f.severity === "high");
   const mediumRiskFindings = mockAnalysis.findings.filter(f => f.severity === "medium");
   const lowRiskFindings = mockAnalysis.findings.filter(f => f.severity === "low");
@@ -263,39 +392,62 @@ const Dashboard = () => {
           {/* Specialist Consultation */}
           <Card className="p-6">
             <h3 className="mb-4 font-semibold">Consult a Specialist</h3>
-            <div className="space-y-3">
-              {mockSpecialists.map((specialist) => (
-                <div key={specialist.id} className="border rounded-lg p-3 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={specialist.avatar} alt={specialist.name} />
-                      <AvatarFallback>{specialist.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{specialist.name}</p>
-                      <p className="text-xs text-muted-foreground">{specialist.specialty}</p>
-                      <p className="text-xs text-muted-foreground">{specialist.hospital}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={specialist.availability === "Available" ? "outline" : "secondary"} className="text-xs">
-                          {specialist.availability}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{specialist.experience}</span>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : specialists.length === 0 ? (
+              <p className="py-8 text-center text-muted-foreground text-sm">No specialists available</p>
+            ) : (
+              <div className="space-y-3">
+                {specialists.map((specialist) => (
+                  <div key={specialist.user_id} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={specialist.avatar_url} alt={specialist.full_name} />
+                        <AvatarFallback>{specialist.full_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{specialist.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{specialist.specialty}</p>
+                        <p className="text-xs text-muted-foreground">{specialist.hospital}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={specialist.availability === "Available" ? "outline" : "secondary"} className="text-xs">
+                            {specialist.availability}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{specialist.years_experience} years</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleSendReport(specialist.user_id)}
+                        disabled={sendingReport === specialist.user_id}
+                      >
+                        {sendingReport === specialist.user_id ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Send className="mr-1 h-3 w-3" />
+                        )}
+                        Send Report
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleChat(specialist.user_id)}
+                      >
+                        <MessageSquare className="mr-1 h-3 w-3" />
+                        Chat
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <Send className="mr-1 h-3 w-3" />
-                      Send Report
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <MessageSquare className="mr-1 h-3 w-3" />
-                      Chat
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </div>
