@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Consultation from "./pages/Consultation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/upload" element={<Upload />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/consultation/:consultationId" element={<Consultation />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
