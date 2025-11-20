@@ -10,55 +10,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-// Mock data - replace with real data from backend
-const mockAnalysis = {
-  id: "analysis_001",
-  date: "2025-10-20",
-  time: "14:30",
-  status: "completed",
-  findings: [
-    { name: "Nodule", confidence: 82, severity: "high" },
-    { name: "Mass", confidence: 78, severity: "high" },
-    { name: "Pneumonia", confidence: 6, severity: "low" },
-    { name: "Edema", confidence: 3, severity: "low" },
-    { name: "Infiltration", confidence: 12, severity: "medium" },
-    { name: "Effusion", confidence: 8, severity: "low" },
-    { name: "Atelectasis", confidence: 5, severity: "low" },
-    { name: "Cardiomegaly", confidence: 15, severity: "medium" },
-  ],
-  overallRisk: "high",
-  recommendation: "Immediate CT scan recommended. Refer to oncology specialist for further evaluation.",
-};
-
-const mockSpecialists = [
-  {
-    id: "spec_001",
-    name: "Dr. Sarah Chen",
-    specialty: "Oncology",
-    hospital: "Metro General Hospital",
-    experience: "15 years",
-    availability: "Available",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-  },
-  {
-    id: "spec_002", 
-    name: "Dr. Michael Roberts",
-    specialty: "Radiology",
-    hospital: "City Medical Center",
-    experience: "12 years",
-    availability: "Available",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michael",
-  },
-  {
-    id: "spec_003",
-    name: "Dr. Priya Sharma",
-    specialty: "Pulmonology",
-    hospital: "Regional Care Institute",
-    experience: "10 years", 
-    availability: "Busy",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya",
-  },
-];
+interface AnalysisResult {
+  id: string;
+  analyzed_at: string;
+  overall_risk: string;
+  recommendation: string;
+  atelectasis_score: number;
+  consolidation_score: number;
+  infiltration_score: number;
+  pneumothorax_score: number;
+  edema_score: number;
+  emphysema_score: number;
+  fibrosis_score: number;
+  effusion_score: number;
+  pneumonia_score: number;
+  pleural_thickening_score: number;
+  cardiomegaly_score: number;
+  nodule_score: number;
+  mass_score: number;
+  hernia_score: number;
+  lung_lesion_score: number;
+  fracture_score: number;
+  lung_opacity_score: number;
+  enlarged_cardiomediastinum_score: number;
+}
 
 interface Specialist {
   user_id: string;
@@ -77,26 +52,45 @@ const Dashboard = () => {
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSpecialists = async () => {
-      const { data, error } = await supabase
+    const fetchData = async () => {
+      if (!user) return;
+
+      // Fetch specialists
+      const { data: specialistsData, error: specialistsError } = await supabase
         .from('profiles')
         .select('*')
         .not('specialty', 'is', null)
-        .neq('user_id', user?.id);
+        .neq('user_id', user.id);
 
-      if (error) {
-        console.error('Error fetching specialists:', error);
+      if (specialistsError) {
+        console.error('Error fetching specialists:', specialistsError);
       } else {
-        setSpecialists(data || []);
+        setSpecialists(specialistsData || []);
       }
       setLoading(false);
+
+      // Fetch latest analysis
+      const { data: analysisData, error: analysisError } = await supabase
+        .from('analysis_results')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('analyzed_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (analysisError) {
+        console.error('Error fetching analysis:', analysisError);
+      } else {
+        setAnalysis(analysisData);
+      }
+      setAnalysisLoading(false);
     };
 
-    if (user) {
-      fetchSpecialists();
-    }
+    fetchData();
   }, [user]);
 
   const handleSendReport = async (specialistId: string) => {
@@ -186,9 +180,48 @@ const Dashboard = () => {
     }
   };
 
-  const highRiskFindings = mockAnalysis.findings.filter(f => f.severity === "high");
-  const mediumRiskFindings = mockAnalysis.findings.filter(f => f.severity === "medium");
-  const lowRiskFindings = mockAnalysis.findings.filter(f => f.severity === "low");
+  // Convert analysis results to findings format
+  const getFindings = () => {
+    if (!analysis) return [];
+    
+    const conditionMap = [
+      { key: 'atelectasis_score', name: 'Atelectasis' },
+      { key: 'consolidation_score', name: 'Consolidation' },
+      { key: 'infiltration_score', name: 'Infiltration' },
+      { key: 'pneumothorax_score', name: 'Pneumothorax' },
+      { key: 'edema_score', name: 'Edema' },
+      { key: 'emphysema_score', name: 'Emphysema' },
+      { key: 'fibrosis_score', name: 'Fibrosis' },
+      { key: 'effusion_score', name: 'Effusion' },
+      { key: 'pneumonia_score', name: 'Pneumonia' },
+      { key: 'pleural_thickening_score', name: 'Pleural Thickening' },
+      { key: 'cardiomegaly_score', name: 'Cardiomegaly' },
+      { key: 'nodule_score', name: 'Nodule' },
+      { key: 'mass_score', name: 'Mass' },
+      { key: 'hernia_score', name: 'Hernia' },
+      { key: 'lung_lesion_score', name: 'Lung Lesion' },
+      { key: 'fracture_score', name: 'Fracture' },
+      { key: 'lung_opacity_score', name: 'Lung Opacity' },
+      { key: 'enlarged_cardiomediastinum_score', name: 'Enlarged Cardiomediastinum' },
+    ];
+
+    return conditionMap
+      .map(({ key, name }) => {
+        const score = analysis[key as keyof AnalysisResult] as number;
+        return {
+          name,
+          confidence: score,
+          severity: score >= 60 ? 'high' : score >= 30 ? 'medium' : 'low'
+        };
+      })
+      .filter(f => f.confidence > 5)
+      .sort((a, b) => b.confidence - a.confidence);
+  };
+
+  const findings = getFindings();
+  const highRiskFindings = findings.filter(f => f.severity === "high");
+  const mediumRiskFindings = findings.filter(f => f.severity === "medium");
+  const lowRiskFindings = findings.filter(f => f.severity === "low");
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -209,13 +242,13 @@ const Dashboard = () => {
       </div>
 
       {/* Alert Banner */}
-      {mockAnalysis.overallRisk === "high" && (
-        <Card className="mb-6 border-critical bg-critical-light p-6">
+      {analysis.overall_risk === "high" && (
+        <Card className="mb-6 border-destructive bg-destructive/10 p-6">
           <div className="flex items-start gap-4">
-            <AlertTriangle className="h-6 w-6 flex-shrink-0 text-critical" />
+            <AlertTriangle className="h-6 w-6 flex-shrink-0 text-destructive" />
             <div>
-              <h3 className="mb-1 font-semibold text-critical">High-Risk Findings Detected</h3>
-              <p className="text-sm text-critical/90">
+              <h3 className="mb-1 font-semibold text-destructive">High-Risk Findings Detected</h3>
+              <p className="text-sm">
                 Multiple high-confidence pathologies detected. Immediate medical attention recommended.
               </p>
             </div>
@@ -234,15 +267,15 @@ const Dashboard = () => {
                 <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    <span>{mockAnalysis.date}</span>
+                    <span>{new Date(analysis.analyzed_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    <span>{mockAnalysis.time}</span>
+                    <span>{new Date(analysis.analyzed_at).toLocaleTimeString()}</span>
                   </div>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-success-light text-success">
+              <Badge variant="outline">
                 <CheckCircle2 className="mr-1 h-3 w-3" />
                 Completed
               </Badge>
@@ -349,25 +382,25 @@ const Dashboard = () => {
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Findings</span>
-                  <span className="font-semibold">{mockAnalysis.findings.length}</span>
+                  <span className="font-semibold">{findings.length}</span>
                 </div>
               </div>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="text-muted-foreground">High Risk</span>
-                  <span className="font-semibold text-critical">{highRiskFindings.length}</span>
+                  <span className="font-semibold text-destructive">{highRiskFindings.length}</span>
                 </div>
               </div>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="text-muted-foreground">Medium Risk</span>
-                  <span className="font-semibold text-warning">{mediumRiskFindings.length}</span>
+                  <span className="font-semibold text-orange-500">{mediumRiskFindings.length}</span>
                 </div>
               </div>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="text-muted-foreground">Low Risk</span>
-                  <span className="font-semibold text-success">{lowRiskFindings.length}</span>
+                  <span className="font-semibold text-green-500">{lowRiskFindings.length}</span>
                 </div>
               </div>
             </div>
@@ -377,7 +410,7 @@ const Dashboard = () => {
           <Card className="p-6 bg-accent">
             <h3 className="mb-2 font-semibold">Recommendation</h3>
             <p className="text-sm text-muted-foreground">
-              {mockAnalysis.recommendation}
+              {analysis.recommendation}
             </p>
           </Card>
 

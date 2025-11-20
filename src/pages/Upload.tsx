@@ -137,16 +137,36 @@ const Upload = () => {
 
       if (dbError) throw dbError;
 
+      setUploadProgress(70);
+
+      // Trigger AI analysis
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('analyze-xray', {
+        body: { imageId: imageData.id }
+      });
+
+      if (functionError) {
+        throw new Error(functionError.message);
+      }
+
+      // Check if image was validated
+      if (!functionData.isValid) {
+        // Delete the uploaded image if not valid
+        await supabase.storage.from('xray-images').remove([uploadData.path]);
+        await supabase.from('xray_images').delete().eq('id', imageData.id);
+        
+        throw new Error(functionData.reason || 'This image does not appear to be a chest X-ray.');
+      }
+
       setUploadProgress(100);
 
       toast({
-        title: "Upload Successful",
-        description: "Your X-ray has been uploaded. Analysis will begin shortly.",
+        title: "Success!",
+        description: "X-ray analyzed successfully!",
       });
 
-      // Navigate to dashboard after a short delay
+      // Navigate to dashboard after short delay
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate('/dashboard');
       }, 1000);
     } catch (error) {
       console.error('Upload error:', error);
