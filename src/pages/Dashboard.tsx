@@ -363,6 +363,12 @@ const Dashboard = () => {
             <h3 className="mb-4 font-semibold">Quick Actions</h3>
             <div className="space-y-3">
               <Button asChild className="w-full justify-start" variant="outline">
+                <Link to={`/detailed-findings/${analysis?.id}`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Detailed Findings
+                </Link>
+              </Button>
+              <Button asChild className="w-full justify-start" variant="outline">
                 <Link to="/reports">
                   <FileText className="mr-2 h-4 w-4" />
                   View Full Report
