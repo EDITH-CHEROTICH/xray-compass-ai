@@ -145,7 +145,20 @@ const Upload = () => {
       });
 
       if (functionError) {
-        throw new Error(functionError.message);
+        // Parse error response if it's JSON
+        let errorMessage = functionError.message;
+        try {
+          const errorData = JSON.parse(functionError.message);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Not JSON, use as is
+        }
+
+        // Clean up uploaded files on error
+        await supabase.storage.from('xray-images').remove([uploadData.path]);
+        await supabase.from('xray_images').delete().eq('id', imageData.id);
+
+        throw new Error(errorMessage);
       }
 
       // Check if image was validated
@@ -154,7 +167,14 @@ const Upload = () => {
         await supabase.storage.from('xray-images').remove([uploadData.path]);
         await supabase.from('xray_images').delete().eq('id', imageData.id);
         
-        throw new Error(functionData.reason || 'This image does not appear to be a chest X-ray.');
+        toast({
+          title: "Invalid Image",
+          description: functionData.reason || 'This image does not appear to be a chest X-ray. Please upload a valid chest X-ray image.',
+          variant: "destructive",
+        });
+        setUploadProgress(0);
+        setIsUploading(false);
+        return;
       }
 
       setUploadProgress(100);
@@ -170,9 +190,37 @@ const Upload = () => {
       }, 1000);
     } catch (error) {
       console.error('Upload error:', error);
+      
+      // Determine error type and show appropriate message
+      let errorTitle = "Upload Failed";
+      let errorDescription = "Failed to upload X-ray. Please try again.";
+
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+        
+        if (errorMsg.includes('rate limit') || errorMsg.includes('429')) {
+          errorTitle = "Too Many Requests";
+          errorDescription = "Our AI service is experiencing high demand. Please wait a moment and try again.";
+        } else if (errorMsg.includes('payment') || errorMsg.includes('402') || errorMsg.includes('credits')) {
+          errorTitle = "Service Unavailable";
+          errorDescription = "The AI analysis service is temporarily unavailable. Please contact support or try again later.";
+        } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+          errorTitle = "Connection Error";
+          errorDescription = "Unable to connect to the analysis service. Please check your internet connection and try again.";
+        } else if (errorMsg.includes('storage')) {
+          errorTitle = "Storage Error";
+          errorDescription = "Failed to save the X-ray image. Please check your file and try again.";
+        } else if (errorMsg.includes('timeout')) {
+          errorTitle = "Analysis Timeout";
+          errorDescription = "The analysis is taking longer than expected. Please try again with a different image or retry later.";
+        } else if (error.message) {
+          errorDescription = error.message;
+        }
+      }
+
       toast({
-        title: "Upload Failed",
-        description: error instanceof Error ? error.message : "Failed to upload X-ray. Please try again.",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
       setUploadProgress(0);
