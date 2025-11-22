@@ -70,7 +70,27 @@ serve(async (req) => {
     });
 
     if (!validationResponse.ok) {
-      throw new Error('Failed to validate image');
+      console.error('Validation request failed:', validationResponse.status);
+      
+      if (validationResponse.status === 429) {
+        return new Response(
+          JSON.stringify({
+            error: 'Rate limit exceeded. Please try again in a moment.'
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (validationResponse.status === 402) {
+        return new Response(
+          JSON.stringify({
+            error: 'AI service temporarily unavailable. Please contact support.'
+          }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw new Error('Failed to validate image with AI service');
     }
 
     const validationData = await validationResponse.json();
@@ -135,7 +155,26 @@ Be specific about locations (upper/middle/lower lobe, left/right, etc.), sizes (
     if (!analysisResponse.ok) {
       const errorText = await analysisResponse.text();
       console.error('Analysis error:', analysisResponse.status, errorText);
-      throw new Error('Failed to analyze image');
+      
+      if (analysisResponse.status === 429) {
+        return new Response(
+          JSON.stringify({
+            error: 'Rate limit exceeded. Please try again in a moment.'
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (analysisResponse.status === 402) {
+        return new Response(
+          JSON.stringify({
+            error: 'AI service temporarily unavailable. Please contact support.'
+          }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw new Error('Failed to analyze image with AI service');
     }
 
     const analysisData = await analysisResponse.json();
