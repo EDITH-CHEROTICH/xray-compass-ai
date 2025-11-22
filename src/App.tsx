@@ -12,6 +12,7 @@ import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Consultation from "./pages/Consultation";
+import DetailedFindings from "./pages/DetailedFindings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/consultation/:consultationId" element={<Consultation />} />
+            <Route path="/detailed-findings/:analysisId" element={<DetailedFindings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
