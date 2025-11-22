@@ -175,12 +175,12 @@ Be specific about locations (upper/middle/lower lobe, left/right, etc.), sizes (
       enlarged_cardiomediastinum_score: 0,
     };
 
-    // Map findings to scores
+    // Map findings to scores (convert percentage to decimal 0-1)
     analysisResult.findings.forEach((finding: any) => {
       const condition = finding.condition.toLowerCase().replace(/\s+/g, '_');
       const scoreField = `${condition}_score`;
       if (scores.hasOwnProperty(scoreField)) {
-        scores[scoreField] = finding.confidence;
+        scores[scoreField] = finding.confidence / 100; // Convert 0-100 to 0-1
       }
     });
 

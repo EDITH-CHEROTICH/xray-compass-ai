@@ -208,10 +208,11 @@ const Dashboard = () => {
     return conditionMap
       .map(({ key, name }) => {
         const score = analysis[key as keyof AnalysisResult] as number;
+        const percentage = score * 100; // Convert 0-1 to 0-100
         return {
           name,
-          confidence: score,
-          severity: score >= 60 ? 'high' : score >= 30 ? 'medium' : 'low'
+          confidence: percentage,
+          severity: percentage >= 60 ? 'high' : percentage >= 30 ? 'medium' : 'low'
         };
       })
       .filter(f => f.confidence > 5)
