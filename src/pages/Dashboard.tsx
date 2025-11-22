@@ -241,8 +241,26 @@ const Dashboard = () => {
         </p>
       </div>
 
+      {/* No Analysis Message */}
+      {!analysisLoading && !analysis && (
+        <Card className="mb-6 p-8 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <FileText className="h-12 w-12 text-muted-foreground" />
+            <div>
+              <h3 className="mb-2 text-xl font-semibold">No Analysis Results</h3>
+              <p className="text-muted-foreground mb-4">
+                Upload an X-ray image to get AI-powered diagnostic analysis
+              </p>
+              <Button asChild>
+                <Link to="/upload">Upload X-ray</Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Alert Banner */}
-      {analysis.overall_risk === "high" && (
+      {analysis?.overall_risk === "high" && (
         <Card className="mb-6 border-destructive bg-destructive/10 p-6">
           <div className="flex items-start gap-4">
             <AlertTriangle className="h-6 w-6 flex-shrink-0 text-destructive" />
@@ -256,6 +274,7 @@ const Dashboard = () => {
         </Card>
       )}
 
+      {analysis && (
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Results */}
         <div className="lg:col-span-2 space-y-6">
@@ -267,11 +286,11 @@ const Dashboard = () => {
                 <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    <span>{new Date(analysis.analyzed_at).toLocaleDateString()}</span>
+                    <span>{analysis?.analyzed_at ? new Date(analysis.analyzed_at).toLocaleDateString() : 'N/A'}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    <span>{new Date(analysis.analyzed_at).toLocaleTimeString()}</span>
+                    <span>{analysis?.analyzed_at ? new Date(analysis.analyzed_at).toLocaleTimeString() : 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -416,7 +435,7 @@ const Dashboard = () => {
           <Card className="p-6 bg-accent">
             <h3 className="mb-2 font-semibold">Recommendation</h3>
             <p className="text-sm text-muted-foreground">
-              {analysis.recommendation}
+              {analysis?.recommendation || 'No recommendations available'}
             </p>
           </Card>
 
@@ -490,6 +509,7 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 };
