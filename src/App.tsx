@@ -6,13 +6,15 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Navigation from "./components/Navigation";
 import Home from "./pages/Home";
-import Upload from "./pages/Upload";
-import Dashboard from "./pages/Dashboard";
-import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Dashboard from "./pages/Dashboard";
+import Upload from "./pages/Upload";
+import Reports from "./pages/Reports";
 import Consultation from "./pages/Consultation";
 import DetailedFindings from "./pages/DetailedFindings";
+import Patients from "./pages/Patients";
+import PatientHistory from "./pages/PatientHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,11 +31,13 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/:patientId" element={<PatientHistory />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/consultation/:consultationId" element={<Consultation />} />
-            <Route path="/detailed-findings/:analysisId" element={<DetailedFindings />} />
+            <Route path="/consultation" element={<Consultation />} />
+            <Route path="/detailed-findings" element={<DetailedFindings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

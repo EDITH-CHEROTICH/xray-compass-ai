@@ -52,6 +52,17 @@ const Navigation = () => {
               <>
                 <Button
                   asChild
+                  variant={isActive("/patients") ? "default" : "ghost"}
+                  size="sm"
+                >
+                  <Link to="/patients" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline">Patients</span>
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
                   variant={isActive("/upload") ? "default" : "ghost"}
                   size="sm"
                 >

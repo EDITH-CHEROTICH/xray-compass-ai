@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Upload as UploadIcon, FileImage, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,21 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { retryWithBackoff } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+
+interface Patient {
+  id: string;
+  patient_number: string;
+  first_name: string;
+  last_name: string;
+}
 
 const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
@@ -15,15 +30,43 @@ const Upload = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/login');
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchPatients();
+      // Set patient from URL if provided
+      const patientId = searchParams.get('patientId');
+      if (patientId) {
+        setSelectedPatient(patientId);
+      }
+    }
+  }, [user, searchParams]);
+
+  const fetchPatients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('patients')
+        .select('id, patient_number, first_name, last_name')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPatients(data || []);
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+    }
+  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -102,6 +145,15 @@ const Upload = () => {
   const handleUpload = async () => {
     if (!selectedFile || !user) return;
 
+    if (!selectedPatient) {
+      toast({
+        title: "Patient Required",
+        description: "Please select a patient before uploading",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsUploading(true);
       setUploadProgress(10);
@@ -148,6 +200,7 @@ const Upload = () => {
               file_name: selectedFile.name,
               file_path: uploadData.path,
               file_size: selectedFile.size,
+              patient_id: selectedPatient,
             })
             .select()
             .single();
@@ -262,6 +315,33 @@ const Upload = () => {
         </div>
 
         <Card className="p-8">
+          <div className="mb-6">
+            <Label htmlFor="patient">Select Patient *</Label>
+            <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+              <SelectTrigger id="patient">
+                <SelectValue placeholder="Choose a patient" />
+              </SelectTrigger>
+              <SelectContent>
+                {patients.map((patient) => (
+                  <SelectItem key={patient.id} value={patient.id}>
+                    {patient.first_name} {patient.last_name} (#{patient.patient_number})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {patients.length === 0 && (
+              <p className="text-sm text-muted-foreground mt-2">
+                No patients found.{" "}
+                <button
+                  onClick={() => navigate('/patients')}
+                  className="text-primary hover:underline"
+                >
+                  Add a patient first
+                </button>
+              </p>
+            )}
+          </div>
+
           {!selectedFile ? (
             <div
               onDragOver={handleDragOver}
