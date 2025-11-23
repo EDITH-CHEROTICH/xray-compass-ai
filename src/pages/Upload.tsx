@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { retryWithBackoff } from "@/lib/utils";
 
 const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
@@ -111,55 +112,76 @@ const Upload = () => {
 
       setUploadProgress(30);
 
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('xray-images')
-        .upload(fileName, selectedFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      // Upload to Supabase Storage with retry
+      const uploadResult = await retryWithBackoff(
+        async () => {
+          const result = await supabase.storage
+            .from('xray-images')
+            .upload(fileName, selectedFile, {
+              cacheControl: '3600',
+              upsert: false
+            });
+          if (result.error) throw result.error;
+          return result;
+        },
+        3,
+        1000,
+        (attempt) => {
+          toast({
+            title: "Retrying Upload",
+            description: `Upload attempt ${attempt} of 3...`,
+          });
+        }
+      );
 
-      if (uploadError) throw uploadError;
+      const uploadData = uploadResult.data;
 
       setUploadProgress(60);
 
-      // Create database record
-      const { data: imageData, error: dbError } = await supabase
-        .from('xray_images')
-        .insert({
-          user_id: user.id,
-          file_name: selectedFile.name,
-          file_path: uploadData.path,
-          file_size: selectedFile.size,
-        })
-        .select()
-        .single();
+      // Create database record with retry
+      const imageResult = await retryWithBackoff(
+        async () => {
+          const result = await supabase
+            .from('xray_images')
+            .insert({
+              user_id: user.id,
+              file_name: selectedFile.name,
+              file_path: uploadData.path,
+              file_size: selectedFile.size,
+            })
+            .select()
+            .single();
+          if (result.error) throw result.error;
+          return result;
+        },
+        3,
+        1000
+      );
 
-      if (dbError) throw dbError;
+      const imageData = imageResult.data;
 
       setUploadProgress(70);
 
-      // Trigger AI analysis
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('analyze-xray', {
-        body: { imageId: imageData.id }
-      });
-
-      if (functionError) {
-        // Parse error response if it's JSON
-        let errorMessage = functionError.message;
-        try {
-          const errorData = JSON.parse(functionError.message);
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          // Not JSON, use as is
+      // Trigger AI analysis with retry
+      const functionResult = await retryWithBackoff(
+        async () => {
+          const result = await supabase.functions.invoke('analyze-xray', {
+            body: { imageId: imageData.id }
+          });
+          if (result.error) throw result.error;
+          return result;
+        },
+        3,
+        2000,
+        (attempt) => {
+          toast({
+            title: "Retrying Analysis",
+            description: `Analysis attempt ${attempt} of 3...`,
+          });
         }
+      );
 
-        // Clean up uploaded files on error
-        await supabase.storage.from('xray-images').remove([uploadData.path]);
-        await supabase.from('xray_images').delete().eq('id', imageData.id);
-
-        throw new Error(errorMessage);
-      }
+      const functionData = functionResult.data;
 
       // Check if image was validated
       if (!functionData.isValid) {
