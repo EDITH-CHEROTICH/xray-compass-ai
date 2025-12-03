@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Upload as UploadIcon, FileImage, X, CheckCircle2 } from "lucide-react";
+import { Upload as UploadIcon, FileImage, X, CheckCircle2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Patient {
   id: string;
@@ -32,6 +40,13 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>("");
+  const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
+  const [isAddingPatient, setIsAddingPatient] = useState(false);
+  const [newPatient, setNewPatient] = useState({
+    first_name: "",
+    last_name: "",
+    patient_number: "",
+  });
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -65,6 +80,52 @@ const Upload = () => {
       setPatients(data || []);
     } catch (error) {
       console.error('Error fetching patients:', error);
+    }
+  };
+
+  const handleAddPatient = async () => {
+    if (!user) return;
+    if (!newPatient.first_name.trim() || !newPatient.last_name.trim() || !newPatient.patient_number.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsAddingPatient(true);
+      const { data, error } = await supabase
+        .from('patients')
+        .insert({
+          user_id: user.id,
+          first_name: newPatient.first_name.trim(),
+          last_name: newPatient.last_name.trim(),
+          patient_number: newPatient.patient_number.trim(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Patient Added",
+        description: `${data.first_name} ${data.last_name} has been added`,
+      });
+
+      setPatients(prev => [data, ...prev]);
+      setSelectedPatient(data.id);
+      setIsAddPatientOpen(false);
+      setNewPatient({ first_name: "", last_name: "", patient_number: "" });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add patient",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingPatient(false);
     }
   };
 
@@ -317,27 +378,71 @@ const Upload = () => {
         <Card className="p-8">
           <div className="mb-6">
             <Label htmlFor="patient">Select Patient *</Label>
-            <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-              <SelectTrigger id="patient">
-                <SelectValue placeholder="Choose a patient" />
-              </SelectTrigger>
-              <SelectContent>
-                {patients.map((patient) => (
-                  <SelectItem key={patient.id} value={patient.id}>
-                    {patient.first_name} {patient.last_name} (#{patient.patient_number})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                <SelectTrigger id="patient" className="flex-1">
+                  <SelectValue placeholder="Choose a patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name} (#{patient.patient_number})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Dialog open={isAddPatientOpen} onOpenChange={setIsAddPatientOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Patient</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label htmlFor="new-first-name">First Name *</Label>
+                      <Input
+                        id="new-first-name"
+                        value={newPatient.first_name}
+                        onChange={(e) => setNewPatient(prev => ({ ...prev, first_name: e.target.value }))}
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-last-name">Last Name *</Label>
+                      <Input
+                        id="new-last-name"
+                        value={newPatient.last_name}
+                        onChange={(e) => setNewPatient(prev => ({ ...prev, last_name: e.target.value }))}
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-patient-number">Patient Number *</Label>
+                      <Input
+                        id="new-patient-number"
+                        value={newPatient.patient_number}
+                        onChange={(e) => setNewPatient(prev => ({ ...prev, patient_number: e.target.value }))}
+                        placeholder="Enter patient number"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleAddPatient} 
+                      disabled={isAddingPatient}
+                      className="w-full"
+                    >
+                      {isAddingPatient ? "Adding..." : "Add Patient"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
             {patients.length === 0 && (
               <p className="text-sm text-muted-foreground mt-2">
-                No patients found.{" "}
-                <button
-                  onClick={() => navigate('/patients')}
-                  className="text-primary hover:underline"
-                >
-                  Add a patient first
-                </button>
+                No patients found. Click the + button to add a new patient.
               </p>
             )}
           </div>
