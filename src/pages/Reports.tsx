@@ -1,200 +1,158 @@
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Download, AlertTriangle, CheckCircle2, FileText, Calendar, Clock } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Loader2, FileText } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { ReportGenerator } from '@/components/ReportGenerator';
+
+const CONDITIONS: { key: string; name: string }[] = [
+  { key: 'atelectasis_score', name: 'Atelectasis' },
+  { key: 'consolidation_score', name: 'Consolidation' },
+  { key: 'infiltration_score', name: 'Infiltration' },
+  { key: 'pneumothorax_score', name: 'Pneumothorax' },
+  { key: 'edema_score', name: 'Edema' },
+  { key: 'emphysema_score', name: 'Emphysema' },
+  { key: 'fibrosis_score', name: 'Fibrosis' },
+  { key: 'effusion_score', name: 'Effusion' },
+  { key: 'pneumonia_score', name: 'Pneumonia' },
+  { key: 'pleural_thickening_score', name: 'Pleural Thickening' },
+  { key: 'cardiomegaly_score', name: 'Cardiomegaly' },
+  { key: 'nodule_score', name: 'Nodule' },
+  { key: 'mass_score', name: 'Mass' },
+  { key: 'hernia_score', name: 'Hernia' },
+  { key: 'lung_lesion_score', name: 'Lung Lesion' },
+  { key: 'fracture_score', name: 'Fracture' },
+  { key: 'lung_opacity_score', name: 'Lung Opacity' },
+  { key: 'enlarged_cardiomediastinum_score', name: 'Enlarged Cardiomediastinum' },
+];
+
+interface ReportData {
+  patientName: string;
+  patientNumber: string;
+  dateOfAnalysis: string;
+  overallRisk: string;
+  findings: { name: string; score: number }[];
+  recommendation: string;
+  xrayImageUrl: string;
+}
 
 const Reports = () => {
-  const reportData = {
-    id: "RPT-2025-10-20-001",
-    patientId: "ANON-12345",
-    date: "2025-10-20",
-    time: "14:30",
-    xrayType: "Chest PA",
-    findings: [
-      { name: "Nodule", confidence: 82, severity: "high" },
-      { name: "Mass", confidence: 78, severity: "high" },
-      { name: "Infiltration", confidence: 12, severity: "medium" },
-      { name: "Cardiomegaly", confidence: 15, severity: "medium" },
-      { name: "Pneumonia", confidence: 6, severity: "low" },
-      { name: "Edema", confidence: 3, severity: "low" },
-    ],
-    recommendation: "Immediate CT scan recommended. Refer to oncology specialist for further evaluation of detected masses and nodules.",
-    aiModel: "TorchXRayVision v1.0 - DenseNet Pre-trained",
-  };
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const analysisId = searchParams.get('analysisId');
+  const [report, setReport] = useState<ReportData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleDownloadPDF = () => {
-    // PDF generation logic would go here
-    console.log("Downloading PDF report...");
-  };
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const load = async () => {
+      setLoading(true);
+
+      let query = supabase
+        .from('analysis_results')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('analyzed_at', { ascending: false })
+        .limit(1);
+
+      if (analysisId) {
+        query = supabase.from('analysis_results').select('*').eq('id', analysisId).limit(1);
+      }
+
+      const { data: analysis, error } = await query.maybeSingle();
+
+      if (error || !analysis) {
+        setReport(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: image } = await supabase
+        .from('xray_images')
+        .select('file_path, uploaded_at, patient_id')
+        .eq('id', analysis.xray_image_id)
+        .maybeSingle();
+
+      let xrayImageUrl = '';
+      if (image?.file_path) {
+        const { data: signed } = await supabase.storage
+          .from('xray-images')
+          .createSignedUrl(image.file_path, 3600);
+        xrayImageUrl = signed?.signedUrl || '';
+      }
+
+      let patientName = 'Anonymous Patient';
+      let patientNumber = 'N/A';
+      if (image?.patient_id) {
+        const { data: patient } = await supabase
+          .from('patients')
+          .select('first_name, last_name, patient_number')
+          .eq('id', image.patient_id)
+          .maybeSingle();
+        if (patient) {
+          patientName = `${patient.first_name} ${patient.last_name}`;
+          patientNumber = patient.patient_number;
+        }
+      }
+
+      const findings = CONDITIONS.map(({ key, name }) => ({
+        name,
+        score: Number((analysis as Record<string, unknown>)[key] ?? 0),
+      })).filter((f) => f.score > 0);
+
+      setReport({
+        patientName,
+        patientNumber,
+        dateOfAnalysis: new Date(analysis.analyzed_at ?? Date.now()).toLocaleString(),
+        overallRisk: analysis.overall_risk ?? 'Unknown',
+        findings: findings.length > 0 ? findings : CONDITIONS.map((c) => ({ name: c.name, score: 0 })),
+        recommendation: analysis.recommendation ?? 'No recommendation available.',
+        xrayImageUrl,
+      });
+      setLoading(false);
+    };
+
+    load();
+  }, [user, authLoading, analysisId, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="container mx-auto px-4 py-16">
+        <Card className="mx-auto max-w-lg p-10 text-center">
+          <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h1 className="mb-2 text-xl font-semibold">No report available</h1>
+          <p className="mb-6 text-muted-foreground">
+            Upload and analyze a chest X-ray to generate a diagnostic report.
+          </p>
+          <Button asChild>
+            <Link to="/upload">Upload an X-ray</Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="mb-2 text-3xl font-bold">Diagnostic Report</h1>
-            <p className="text-muted-foreground">
-              AI-Generated Medical Imaging Analysis
-            </p>
-          </div>
-          <Button onClick={handleDownloadPDF} size="lg">
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
-        </div>
-
-        {/* Report Header */}
-        <Card className="mb-6 p-8">
-          <div className="mb-6 flex items-start justify-between">
-            <div>
-              <h2 className="mb-4 text-2xl font-bold">MEDISCAN DIAGNOSTIC REPORT</h2>
-              <div className="space-y-2 text-sm">
-                <div className="flex gap-2">
-                  <span className="font-semibold text-muted-foreground">Report ID:</span>
-                  <span className="font-mono">{reportData.id}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-semibold text-muted-foreground">Patient ID:</span>
-                  <span className="font-mono">{reportData.patientId}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{reportData.date}</span>
-                  <Clock className="ml-2 h-4 w-4 text-muted-foreground" />
-                  <span>{reportData.time}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-semibold text-muted-foreground">X-ray Type:</span>
-                  <span>{reportData.xrayType}</span>
-                </div>
-              </div>
-            </div>
-            <Badge variant="outline" className="bg-critical-light text-critical">
-              <AlertTriangle className="mr-1 h-3 w-3" />
-              High Risk
-            </Badge>
-          </div>
-
-          <div className="rounded-lg border bg-muted p-4">
-            <p className="text-sm text-muted-foreground">
-              This report contains AI-generated findings and should be reviewed by a qualified medical professional. 
-              Do not make medical decisions based solely on this automated analysis.
-            </p>
-          </div>
-        </Card>
-
-        {/* X-Ray Image Section */}
-        <Card className="mb-6 p-8">
-          <h3 className="mb-4 text-xl font-bold">X-Ray Image Analysis</h3>
-          <div className="rounded-lg bg-muted p-8">
-            <div className="flex items-center justify-center">
-              <div className="text-center">
-                <FileText className="mx-auto mb-4 h-24 w-24 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  X-ray image with AI annotations would be displayed here
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  (Red circles highlight detected masses and nodules)
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* AI Findings Section */}
-        <Card className="mb-6 p-8">
-          <h3 className="mb-6 text-xl font-bold">AI FINDINGS</h3>
-          
-          {/* High Risk */}
-          <div className="mb-6">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-critical" />
-              <h4 className="font-semibold text-critical">HIGH RISK FINDINGS:</h4>
-            </div>
-            <div className="space-y-3 pl-7">
-              {reportData.findings
-                .filter(f => f.severity === "high")
-                .map((finding, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-lg bg-critical-light p-3">
-                    <span className="font-medium">{finding.name}</span>
-                    <span className="font-bold text-critical">{finding.confidence}% confidence</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Medium Risk */}
-          <div className="mb-6">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              <h4 className="font-semibold text-warning">MEDIUM RISK FINDINGS:</h4>
-            </div>
-            <div className="space-y-3 pl-7">
-              {reportData.findings
-                .filter(f => f.severity === "medium")
-                .map((finding, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-lg bg-warning-light p-3">
-                    <span className="font-medium">{finding.name}</span>
-                    <span className="font-bold text-warning">{finding.confidence}% confidence</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Low Risk */}
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-success" />
-              <h4 className="font-semibold text-success">LOW RISK FINDINGS:</h4>
-            </div>
-            <div className="space-y-2 pl-7">
-              {reportData.findings
-                .filter(f => f.severity === "low")
-                .map((finding, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm">
-                    <span>{finding.name}</span>
-                    <span className="text-muted-foreground">{finding.confidence}%</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </Card>
-
-        {/* Recommendation Section */}
-        <Card className="mb-6 p-8 bg-accent">
-          <h3 className="mb-4 text-xl font-bold">CLINICAL RECOMMENDATION</h3>
-          <p className="leading-relaxed">{reportData.recommendation}</p>
-        </Card>
-
-        {/* Footer Section */}
-        <Card className="p-8">
-          <div className="space-y-4 text-sm text-muted-foreground">
-            <div>
-              <span className="font-semibold">AI Model Used:</span> {reportData.aiModel}
-            </div>
-            <div>
-              <span className="font-semibold">Analysis Method:</span> Deep learning-based pathology detection using 
-              pre-trained convolutional neural networks on medical imaging datasets
-            </div>
-            <div>
-              <span className="font-semibold">Reviewed By:</span> Pending physician review
-            </div>
-            <div className="pt-4 border-t">
-              <p className="text-xs">
-                This automated report was generated by MediScan AI diagnostic system. All findings should be 
-                confirmed by a licensed radiologist or physician. This report does not constitute a final 
-                diagnosis and should not be used as the sole basis for treatment decisions.
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-8 text-center">
-          <Button onClick={handleDownloadPDF} size="lg">
-            <Download className="mr-2 h-4 w-4" />
-            Download Complete Report (PDF)
-          </Button>
-        </div>
+      <div className="mx-auto max-w-4xl">
+        <h1 className="mb-6 text-3xl font-bold">Diagnostic Report</h1>
+        <ReportGenerator data={report} />
       </div>
     </div>
   );

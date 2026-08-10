@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import Reports from "./pages/Reports";
 import Consultation from "./pages/Consultation";
+import Consultations from "./pages/Consultations";
 import DetailedFindings from "./pages/DetailedFindings";
 import Patients from "./pages/Patients";
 import PatientHistory from "./pages/PatientHistory";
@@ -36,7 +37,8 @@ const App = () => (
             <Route path="/upload" element={<Upload />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/consultation" element={<Consultation />} />
+            <Route path="/consultation" element={<Consultations />} />
+            <Route path="/consultation/:consultationId" element={<Consultation />} />
             <Route path="/detailed-findings/:analysisId" element={<DetailedFindings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
