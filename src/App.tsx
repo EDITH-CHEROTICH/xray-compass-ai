@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import Reports from "./pages/Reports";
 import Consultation from "./pages/Consultation";
+import Consultations from "./pages/Consultations";
 import DetailedFindings from "./pages/DetailedFindings";
 import Patients from "./pages/Patients";
 import PatientHistory from "./pages/PatientHistory";
