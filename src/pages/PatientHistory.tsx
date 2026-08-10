@@ -201,7 +201,7 @@ const PatientHistory = () => {
                     variant="outline"
                     size="sm"
                     className="w-full mt-3"
-                    onClick={() => navigate(`/detailed-findings?imageId=${xray.id}`)}
+                    onClick={() => navigate(`/detailed-findings/${xray.analysis!.id}`)}
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     View Report
