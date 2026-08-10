@@ -23,6 +23,7 @@ interface XRayWithAnalysis {
   file_path: string;
   uploaded_at: string;
   analysis: {
+    id: string;
     overall_risk: string;
     analyzed_at: string;
   } | null;
@@ -61,6 +62,7 @@ const PatientHistory = () => {
           file_path,
           uploaded_at,
           analysis_results (
+            id,
             overall_risk,
             analyzed_at
           )
@@ -199,7 +201,7 @@ const PatientHistory = () => {
                     variant="outline"
                     size="sm"
                     className="w-full mt-3"
-                    onClick={() => navigate(`/detailed-findings?imageId=${xray.id}`)}
+                    onClick={() => navigate(`/detailed-findings/${xray.analysis!.id}`)}
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     View Report
