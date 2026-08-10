@@ -62,6 +62,7 @@ const PatientHistory = () => {
           file_path,
           uploaded_at,
           analysis_results (
+            id,
             overall_risk,
             analyzed_at
           )
