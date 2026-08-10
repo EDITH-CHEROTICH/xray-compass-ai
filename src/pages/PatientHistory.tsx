@@ -23,6 +23,7 @@ interface XRayWithAnalysis {
   file_path: string;
   uploaded_at: string;
   analysis: {
+    id: string;
     overall_risk: string;
     analyzed_at: string;
   } | null;
